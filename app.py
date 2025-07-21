@@ -80,7 +80,7 @@ revenue_payout.plot(kind="bar", x="name", ax=ax5, width=0.7)
 ax5.set_title("Influencer Revenue vs Payout")
 ax5.set_ylabel("Amount (₹)")
 ax5.set_xlabel("Influencer")
-plt.xticks(rotation=90, fontsize=6)
+plt.xticks(rotation=90, fontsize=3)
 st.pyplot(fig5)
 
 st.markdown("---")
