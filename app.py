@@ -1,103 +1,81 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
+import os
 
-st.set_page_config(page_title="HealthKart Influencer ROI Dashboard", layout="wide")
-st.title("🏋️ HealthKart Influencer Campaign ROI Dashboard")
+st.set_page_config(layout="wide")
+st.title("📊 Influencer ROI Tracker Dashboard")
 
-st.sidebar.header("📤 Upload Your Data")
-influencer_file = st.sidebar.file_uploader("Upload Influencers CSV", type="csv")
-posts_file = st.sidebar.file_uploader("Upload Posts CSV", type="csv")
-tracking_file = st.sidebar.file_uploader("Upload Tracking Data CSV", type="csv")
-payouts_file = st.sidebar.file_uploader("Upload Payouts CSV", type="csv")
+uploaded_file = st.file_uploader("Upload your influencer CSV file", type=["csv"])
 
-@st.cache_data
-def load_uploaded_data():
-    if influencer_file and posts_file and tracking_file and payouts_file:
-        influencers = pd.read_csv(influencer_file)
-        posts = pd.read_csv(posts_file)
-        tracking = pd.read_csv(tracking_file)
-        payouts = pd.read_csv(payouts_file)
-        return influencers, posts, tracking, payouts
-    return None, None, None, None
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    st.subheader("Raw Data Preview")
+    st.dataframe(df.head(20), use_container_width=True)
 
-influencers, posts, tracking, payouts = load_uploaded_data()
+    with st.expander("Show Summary Statistics"):
+        st.write(df.describe())
 
-if influencers is None:
-    st.warning("⬅️ Please upload all required CSV files from the sidebar to continue.")
-    st.stop()
+    st.subheader("Campaign Metrics")
+    col1, col2, col3, col4 = st.columns(4)
 
-st.sidebar.header("Filter Options")
-selected_platform = st.sidebar.multiselect("Platform", influencers["platform"].unique(), default=influencers["platform"].unique())
-selected_gender = st.sidebar.multiselect("Gender", influencers["gender"].unique(), default=influencers["gender"].unique())
-selected_category = st.sidebar.multiselect("Category", influencers["category"].unique(), default=influencers["category"].unique())
+    with col1:
+        st.metric("Total Campaigns", df["Campaign Name"].nunique())
+    with col2:
+        st.metric("Total Influencers", df["Influencer Name"].nunique())
+    with col3:
+        st.metric("Total Spent", f"₹{df['Amount Spent'].sum():,.0f}")
+    with col4:
+        st.metric("Total Revenue", f"₹{df['Revenue Generated'].sum():,.0f}")
 
-filtered_influencers = influencers[
-    (influencers["platform"].isin(selected_platform)) &
-    (influencers["gender"].isin(selected_gender)) &
-    (influencers["category"].isin(selected_category))
-]
-filtered_posts = posts[posts["platform"].isin(selected_platform)]
-filtered_tracking = tracking[tracking["source"].isin(selected_platform)]
+    df["ROAS"] = df["Revenue Generated"] / df["Amount Spent"]
+    df["ROI (%)"] = ((df["Revenue Generated"] - df["Amount Spent"]) / df["Amount Spent"]) * 100
 
-perf_df = filtered_tracking.merge(payouts, on="influencer_id", how="left")
-perf_df = perf_df.merge(influencers, on="influencer_id", how="left")
-perf_df = perf_df.merge(posts, on="influencer_id", how="left")
+    st.subheader("📈 ROAS by Campaign")
+    fig1, ax1 = plt.subplots(figsize=(10, 4))
+    sns.barplot(data=df, x="Campaign Name", y="ROAS", hue="Platform", ax=ax1)
+    ax1.set_title("ROAS by Campaign")
+    ax1.tick_params(axis='x', rotation=45)
+    st.pyplot(fig1)
 
-perf_df["ROAS"] = perf_df["revenue"] / perf_df["total_payout"]
-perf_df["ROI"] = (perf_df["revenue"] - perf_df["total_payout"]) / perf_df["total_payout"]
-perf_df["engagement"] = (perf_df["likes"] + perf_df["comments"]) / perf_df["reach"]
-perf_df["conversion_rate"] = perf_df["orders"] / perf_df["reach"]
-perf_df["revenue_per_post"] = perf_df["revenue"] / perf_df["rate"]
-perf_df["cost_per_order"] = perf_df["total_payout"] / perf_df["orders"]
-perf_df["cost_per_reach"] = perf_df["total_payout"] / perf_df["reach"]
-perf_df["likes_per_post"] = perf_df["likes"]
-perf_df["comments_per_post"] = perf_df["comments"]
+    st.subheader("📈 ROI (%) by Influencer")
+    fig2, ax2 = plt.subplots(figsize=(10, 4))
+    sns.barplot(data=df.sort_values("ROI (%)", ascending=False), x="Influencer Name", y="ROI (%)", ax=ax2)
+    ax2.set_title("ROI (%) by Influencer")
+    ax2.tick_params(axis='x', rotation=45)
+    st.pyplot(fig2)
 
-total_revenue = perf_df["revenue"].sum()
-total_spend = perf_df["total_payout"].sum()
-overall_roas = round(total_revenue / total_spend, 2)
-total_orders = perf_df["orders"].sum()
-total_reach = perf_df["reach"].sum()
+    st.subheader("📈 Revenue vs Spend")
+    fig3, ax3 = plt.subplots(figsize=(6, 6))
+    sns.scatterplot(data=df, x="Amount Spent", y="Revenue Generated", hue="Platform", ax=ax3)
+    ax3.plot([df['Amount Spent'].min(), df['Amount Spent'].max()], [df['Amount Spent'].min(), df['Amount Spent'].max()], 'r--')
+    ax3.set_title("Revenue vs Spend")
+    st.pyplot(fig3)
 
-st.markdown("### 📈 Overall Campaign Metrics")
-kpi1, kpi2, kpi3 = st.columns(3)
-kpi1.metric("Total Revenue (₹)", f"{total_revenue:,.0f}")
-kpi2.metric("Total Spend (₹)", f"{total_spend:,.0f}")
-kpi3.metric("Overall ROAS", f"{overall_roas}x")
-kpi4, kpi5, kpi6 = st.columns(3)
-kpi4.metric("Total Orders", f"{total_orders:,.0f}")
-kpi5.metric("Total Reach", f"{total_reach:,.0f}")
-kpi6.metric("Avg Engagement Rate", f"{perf_df['engagement'].mean():.2%}")
+    st.subheader("💡 Predict Revenue from Spend")
+    if st.checkbox("Enable Revenue Predictor"):
+        X = df[["Amount Spent"]]
+        y = df["Revenue Generated"]
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        model = LinearRegression()
+        model.fit(X_train, y_train)
 
-st.markdown("### 👥 Influencer Performance")
-st.dataframe(perf_df[["name", "platform", "category", "gender", "follower_count", "revenue", "orders", "reach", "likes", "comments", "engagement", "conversion_rate", "total_payout", "ROAS", "ROI", "cost_per_order", "cost_per_reach"]].round(2))
+        y_pred = model.predict(X_test)
+        mse = mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
 
-st.markdown("### 📊 ROAS by Influencer")
-fig = px.bar(perf_df, x="name", y="ROAS", color="platform", text="ROAS", height=400)
-st.plotly_chart(fig, use_container_width=True)
+        st.markdown(f"**Model R² Score:** {r2:.2f}")
+        st.markdown(f"**Mean Squared Error:** {mse:.2f}")
 
-st.markdown("### 💬 Engagement Rate by Platform")
-fig2 = px.box(perf_df, x="platform", y="engagement", color="platform")
-st.plotly_chart(fig2, use_container_width=True)
+        input_spend = st.number_input("Enter Spend to Predict Revenue", min_value=0.0, step=100.0)
+        if input_spend:
+            predicted = model.predict([[input_spend]])[0]
+            st.success(f"Estimated Revenue: ₹{predicted:,.0f}")
 
-if "date" in perf_df.columns:
-    perf_df["date"] = pd.to_datetime(perf_df["date"])
-    trend = perf_df.groupby(perf_df["date"].dt.to_period("M")).agg({"revenue": "sum", "orders": "sum"}).reset_index()
-    trend["date"] = trend["date"].astype(str)
-    st.markdown("### 📅 Monthly Revenue and Orders Trend")
-    fig3 = px.line(trend, x="date", y=["revenue", "orders"], markers=True)
-    st.plotly_chart(fig3, use_container_width=True)
-
-st.download_button("Export ROI Data to CSV", data=perf_df.to_csv(index=False), file_name="influencer_roi.csv", mime="text/csv")
-
-
-with st.expander("💡 Auto Insights Summary"):
-    best_influencer = perf_df.sort_values(by="ROAS", ascending=False).iloc[0]
-    worst_influencer = perf_df.sort_values(by="ROAS").iloc[0]
-    st.markdown(f"- **Top ROAS:** {best_influencer['name']} ({best_influencer['ROAS']:.2f}x)")
-    st.markdown(f"- **Lowest ROAS:** {worst_influencer['name']} ({worst_influencer['ROAS']:.2f}x)")
-    st.markdown(f"- **Top Engagement:** {perf_df.sort_values(by='engagement', ascending=False).iloc[0]['name']} ({perf_df['engagement'].max():.2%})")
-    st.markdown(f"- **Top Conversion:** {perf_df.sort_values(by='conversion_rate', ascending=False).iloc[0]['name']} ({perf_df['conversion_rate'].max():.2%})")
-    st.markdown("- Influencers paid per order are generally more cost-effective based on ROI comparison.")
+else:
+    st.info("👆 Upload a CSV file to begin tracking ROI!")
