@@ -11,30 +11,37 @@ import os
 st.set_page_config(layout="wide")
 st.title("📊 Influencer ROI Tracker Dashboard")
 
-uploaded_file = st.file_uploader("Upload your influencer CSV file", type=["csv"])
+uploaded_files = st.file_uploader("Upload one or more influencer CSV files", type=["csv"], accept_multiple_files=True)
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
+if uploaded_files:
+    dfs = [pd.read_csv(file) for file in uploaded_files]
+    df = pd.concat(dfs, ignore_index=True)
+
     st.subheader("Raw Data Preview")
     st.dataframe(df.head(20), use_container_width=True)
 
     with st.expander("Show Summary Statistics"):
-        st.write(df.describe())
+        st.write(df.describe(include='all'))
 
     st.subheader("Campaign Metrics")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
         st.metric("Total Campaigns", df["Campaign Name"].nunique())
     with col2:
         st.metric("Total Influencers", df["Influencer Name"].nunique())
     with col3:
-        st.metric("Total Spent", f"₹{df['Amount Spent'].sum():,.0f}")
+        st.metric("Total Platforms", df["Platform"].nunique())
     with col4:
+        st.metric("Total Spent", f"₹{df['Amount Spent'].sum():,.0f}")
+    with col5:
         st.metric("Total Revenue", f"₹{df['Revenue Generated'].sum():,.0f}")
 
     df["ROAS"] = df["Revenue Generated"] / df["Amount Spent"]
     df["ROI (%)"] = ((df["Revenue Generated"] - df["Amount Spent"]) / df["Amount Spent"]) * 100
+    df["CTR"] = df.get("Clicks", 0) / df.get("Impressions", 1)
+    df["CPC"] = df.get("Amount Spent", 0) / df.get("Clicks", 1)
+    df["Conversion Rate (%)"] = df.get("Conversions", 0) / df.get("Clicks", 1) * 100
 
     st.subheader("📈 ROAS by Campaign")
     fig1, ax1 = plt.subplots(figsize=(10, 4))
@@ -50,14 +57,27 @@ if uploaded_file is not None:
     ax2.tick_params(axis='x', rotation=45)
     st.pyplot(fig2)
 
-    st.subheader("📈 Revenue vs Spend")
+    st.subheader("📉 Revenue vs Spend")
     fig3, ax3 = plt.subplots(figsize=(6, 6))
     sns.scatterplot(data=df, x="Amount Spent", y="Revenue Generated", hue="Platform", ax=ax3)
     ax3.plot([df['Amount Spent'].min(), df['Amount Spent'].max()], [df['Amount Spent'].min(), df['Amount Spent'].max()], 'r--')
     ax3.set_title("Revenue vs Spend")
     st.pyplot(fig3)
 
-    st.subheader("💡 Predict Revenue from Spend")
+    st.subheader("📊 Additional Metrics")
+    fig4, ax4 = plt.subplots(figsize=(10, 4))
+    sns.barplot(data=df, x="Campaign Name", y="CTR", ax=ax4)
+    ax4.set_title("CTR by Campaign")
+    ax4.tick_params(axis='x', rotation=45)
+    st.pyplot(fig4)
+
+    fig5, ax5 = plt.subplots(figsize=(10, 4))
+    sns.barplot(data=df, x="Campaign Name", y="CPC", ax=ax5)
+    ax5.set_title("CPC by Campaign")
+    ax5.tick_params(axis='x', rotation=45)
+    st.pyplot(fig5)
+
+    st.subheader("🔮 Predict Revenue from Spend")
     if st.checkbox("Enable Revenue Predictor"):
         X = df[["Amount Spent"]]
         y = df["Revenue Generated"]
@@ -78,4 +98,4 @@ if uploaded_file is not None:
             st.success(f"Estimated Revenue: ₹{predicted:,.0f}")
 
 else:
-    st.info("👆 Upload a CSV file to begin tracking ROI!")
+    st.info("👆 Upload CSV files to begin tracking ROI!")
