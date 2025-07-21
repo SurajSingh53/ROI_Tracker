@@ -1,63 +1,40 @@
-# ROI_Tracker
-open-source tool or dashboard that can track and visualize the ROI of influencer campaigns.
-# 📊 Influencer ROI Tracker Dashboard
+# 🎯 Influencer ROI Tracker (Streamlit Dashboard)
 
-A modern, interactive dashboard to track, visualize, and analyze the performance of influencer marketing campaigns. Built with **HTML, CSS, JS**, and animated using **Chart.js**, this dashboard helps you uncover key insights like:
+A sleek, data-driven web dashboard built using **Streamlit** to help marketers, analysts, and brands **track ROI**, **optimize influencer performance**, and decode what truly works in influencer campaigns.
 
-- 🧠 ROI & incremental ROAS
-- 🎯 Top-performing influencers & personas
-- 📉 Underperformers and cost drains
-- 🔍 Filter by brand, product, platform & more
+No fluff. Just real insights.
 
 ---
 
-## 🚀 Features
+## 🔍 Features
 
-### 🔄 Data Sources
-This dashboard works with four main CSV data files:
-
-- `influencers.csv` – Influencer profile & audience data
-- `posts.csv` – Post-level engagement & platform performance
-- `tracking_data.csv` – Clicks, revenue, cost per click, brand & product data
-- `payouts.csv` – Campaign payout, rates, and order-based data
-
-### 📈 Visualizations
-Includes responsive and animated charts:
-- **ROI vs Influencer** bar chart
-- **ROAS comparison** (standard vs incremental)
-- **Top influencers by revenue & reach**
-- **Platform & campaign filters**
-- **Compact visual styles for easier viewing**
-
-### 🎛️ Filters & Insights
-Filter by:
-- Brand
-- Product
-- Platform (Instagram, YouTube, etc.)
-- Influencer category or type
-
-Auto-summarized insights include:
-- Best ROI influencers
-- Top reach generators
-- Low-performing personas for optimization
+- 📈 ROI & Incremental ROAS Calculation  
+- 👑 Top Influencer & Persona Identification  
+- 🚫 Poor ROI Flagging  
+- 🎛️ Filters by Brand, Product, Influencer Type, Platform  
+- 📊 Interactive Charts (Bar, Pie, Line)  
+- 💡 Smart Data Visuals with Campaign-Level Metrics  
 
 ---
 
-## 🧰 Tech Stack
+## 🗂️ Data Structure
 
-| Tech | Usage |
-|------|-------|
-| HTML/CSS | Layout and design |
-| JavaScript | Data parsing and interactivity |
-| Chart.js | Data visualization with animations |
-| PapaParse | CSV parsing client-side |
-| GitHub Pages | Hosting the dashboard |
+Make sure you have these CSV files ready:
+
+| File              | Description                                           |
+|-------------------|-------------------------------------------------------|
+| `influencers.csv` | Influencer metadata (Name, Platform, Gender, etc.)   |
+| `posts.csv`       | Post-level performance (Reach, Likes, Comments, etc.)|
+| `tracking.csv`    | Campaign data (Clicks, Revenue, Orders, etc.)        |
+| `payouts.csv`     | Payout data per influencer                           |
+
+> Place all files in a `data/` folder or update the path in `app.py`.
 
 ---
 
-## 📦 Setup Instructions
+## 🚀 Getting Started
 
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/<your-username>/roi-tracker-dashboard.git
-   cd roi-tracker-dashboard
+### Clone the Repository
+```bash
+git clone https://github.com/<your-username>/influencer-roi-tracker.git
+cd influencer-roi-tracker
