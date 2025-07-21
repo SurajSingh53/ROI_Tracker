@@ -2,134 +2,101 @@ import streamlit as st
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
+import plotly.express as px
 import plotly.graph_objects as go
-from matplotlib.animation import FuncAnimation
+import altair as alt
+import numpy as np
 
 st.set_page_config(layout="wide")
 
-st.title("📊 Influencer Campaign ROI Dashboard")
+st.title("📊 Influencer ROI & Campaign Performance Dashboard")
 
-# Load data
-posts = pd.read_csv("posts.csv")
-payouts = pd.read_csv("payouts.csv")
-influencers = pd.read_csv("influencers.csv")
-tracking = pd.read_csv("tracking_data.csv")
+uploaded_tracking = st.file_uploader("Upload Tracking Data", type="csv")
+uploaded_posts = st.file_uploader("Upload Posts Data", type="csv")
+uploaded_payouts = st.file_uploader("Upload Payouts Data", type="csv")
+uploaded_influencers = st.file_uploader("Upload Influencers Data", type="csv")
 
-# Merge data
-merged = tracking.merge(posts, on=["Influencer Name", "Campaign Name"], how="left")
-merged = merged.merge(payouts, on=["Influencer Name", "Campaign Name"], how="left")
-merged = merged.merge(influencers, on="Influencer Name", how="left")
+if uploaded_tracking and uploaded_posts and uploaded_payouts and uploaded_influencers:
+    tracking_df = pd.read_csv(uploaded_tracking)
+    posts_df = pd.read_csv(uploaded_posts)
+    payouts_df = pd.read_csv(uploaded_payouts)
+    influencers_df = pd.read_csv(uploaded_influencers)
 
-# Fill NaNs
-merged.fillna(0, inplace=True)
+    df = tracking_df.merge(posts_df, on="influencer_id", how="left")
+    df = df.merge(payouts_df, on=["influencer_id", "campaign"], how="left")
+    df = df.merge(influencers_df, on="influencer_id", how="left")
 
-# Calculations
-merged["ROI"] = (merged["Sales Value"] - merged["Payout Amount"]) / merged["Payout Amount"]
-merged["ROAS"] = merged["Sales Value"] / merged["Payout Amount"]
+    df["ROI"] = df["revenue"] / df["total_payout"]
+    df["ROAS"] = df["revenue"] / (df["clicks"] * df["cost_per_click"])
+    df["incremental_ROAS"] = df["ROAS"] - df["ROI"]
+    df["date"] = pd.to_datetime(df["date"])
 
-# Sidebar filters
-brands = merged["Brand"].unique()
-products = merged["Product"].unique()
-types = merged["Influencer Type"].unique()
-platforms = merged["Platform"].unique()
+    brands = df["brand"].dropna().unique()
+    products = df["product"].dropna().unique()
+    platforms = df["platform_x"].dropna().unique()
+    genders = df["gender"].dropna().unique()
 
-brand_filter = st.sidebar.multiselect("Filter by Brand", brands, default=brands)
-product_filter = st.sidebar.multiselect("Filter by Product", products, default=products)
-type_filter = st.sidebar.multiselect("Filter by Influencer Type", types, default=types)
-platform_filter = st.sidebar.multiselect("Filter by Platform", platforms, default=platforms)
+    selected_brand = st.selectbox("Filter by Brand", ["All"] + list(brands))
+    selected_product = st.selectbox("Filter by Product", ["All"] + list(products))
+    selected_platform = st.selectbox("Filter by Platform", ["All"] + list(platforms))
+    selected_gender = st.selectbox("Filter by Influencer Gender", ["All"] + list(genders))
 
-filtered = merged[
-    (merged["Brand"].isin(brand_filter)) &
-    (merged["Product"].isin(product_filter)) &
-    (merged["Influencer Type"].isin(type_filter)) &
-    (merged["Platform"].isin(platform_filter))
-]
+    filtered_df = df.copy()
+    if selected_brand != "All":
+        filtered_df = filtered_df[filtered_df["brand"] == selected_brand]
+    if selected_product != "All":
+        filtered_df = filtered_df[filtered_df["product"] == selected_product]
+    if selected_platform != "All":
+        filtered_df = filtered_df[filtered_df["platform_x"] == selected_platform]
+    if selected_gender != "All":
+        filtered_df = filtered_df[filtered_df["gender"] == selected_gender]
 
-# Metrics
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Total Campaigns", filtered["Campaign Name"].nunique())
-col2.metric("Total Influencers", filtered["Influencer Name"].nunique())
-col3.metric("Total Sales", f"₹{int(filtered['Sales Value'].sum()):,}")
-col4.metric("Avg. ROAS", f"{filtered['ROAS'].mean():.2f}x")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("🧮 Total Campaigns", df["campaign"].nunique())
+    col2.metric("🎯 Total Orders", int(df["orders"].sum()))
+    col3.metric("💸 Total Revenue", f"₹{int(df["revenue"].sum()):,}")
+    col4.metric("🤑 Avg ROI", round(df["ROI"].mean(), 2))
 
-# Layout
-st.markdown("---")
-col5, col6 = st.columns(2)
+    st.markdown("---")
 
-# ROI Distribution
-with col5:
-    fig, ax = plt.subplots(figsize=(6, 4))
-    sns.histplot(filtered["ROI"], kde=True, ax=ax, color="skyblue")
-    ax.set_title("ROI Distribution")
-    ax.set_xlabel("ROI (Return on Investment)")
-    ax.xaxis.set_major_formatter(ticker.PercentFormatter(1.0))
-    st.pyplot(fig)
+    st.subheader("📈 Revenue Over Time")
+    fig1 = alt.Chart(filtered_df).mark_line(point=True).encode(
+        x=alt.X("date:T", title="Date"),
+        y=alt.Y("revenue:Q", title="Revenue (₹)"),
+        color="campaign:N",
+        tooltip=["date", "campaign", "revenue"]
+    ).properties(width=900, height=300).interactive()
+    st.altair_chart(fig1, use_container_width=True)
 
-# ROAS vs Sales
-with col6:
-    fig, ax = plt.subplots(figsize=(6, 4))
-    sns.scatterplot(data=filtered, x="ROAS", y="Sales Value", hue="Platform", ax=ax)
-    ax.set_title("ROAS vs Sales Value")
-    ax.set_ylabel("Sales (₹)")
-    ax.set_xlabel("ROAS (x)")
-    st.pyplot(fig)
+    st.subheader("🔥 Top Influencers by ROI")
+    top_influencers = filtered_df.groupby("name")["ROI"].mean().nlargest(10).reset_index()
+    fig2 = alt.Chart(top_influencers).mark_bar().encode(
+        x=alt.X("ROI:Q", title="ROI"),
+        y=alt.Y("name:N", sort="-x", title="Influencer Name"),
+        color="ROI:Q",
+        tooltip=["name", "ROI"]
+    ).properties(width=800, height=300)
+    st.altair_chart(fig2, use_container_width=True)
 
-st.markdown("---")
-col7, col8 = st.columns(2)
+    st.subheader("📉 Influencer Engagement vs Payout")
+    fig3 = alt.Chart(filtered_df).mark_circle(size=60).encode(
+        x=alt.X("engagement_rate:Q", title="Engagement Rate (%)"),
+        y=alt.Y("total_payout:Q", title="Total Payout (₹)"),
+        color="platform_x:N",
+        tooltip=["name", "engagement_rate", "total_payout"]
+    ).properties(width=800, height=300).interactive()
+    st.altair_chart(fig3, use_container_width=True)
 
-# Top Influencers by Sales
-top_influencers = filtered.groupby("Influencer Name")["Sales Value"].sum().sort_values(ascending=False).head(10)
-with col7:
-    fig, ax = plt.subplots(figsize=(6, 4))
-    sns.barplot(x=top_influencers.values, y=top_influencers.index, palette="viridis", ax=ax)
-    ax.set_title("Top 10 Influencers by Sales")
-    ax.set_xlabel("Sales (₹)")
-    st.pyplot(fig)
-
-# Best performing personas
-best_personas = filtered.groupby("Influencer Type")["ROAS"].mean().sort_values(ascending=False)
-with col8:
-    fig, ax = plt.subplots(figsize=(6, 4))
-    sns.barplot(x=best_personas.values, y=best_personas.index, palette="magma", ax=ax)
-    ax.set_title("Best Performing Influencer Types (Avg. ROAS)")
-    ax.set_xlabel("ROAS (x)")
-    st.pyplot(fig)
-
-st.markdown("---")
-
-# Animated post tracking over time
-filtered["Date"] = pd.to_datetime(filtered["Date"], errors='coerce')
-filtered = filtered.dropna(subset=["Date"])
-
-time_group = filtered.groupby(filtered["Date"].dt.to_period("M")).agg({"Sales Value": "sum"})
-time_group.index = time_group.index.to_timestamp()
-
-fig, ax = plt.subplots(figsize=(10, 4))
-bar = ax.bar([], [])
-
-frames = []
-x = time_group.index
-
-for i in range(len(x)):
-    ax.clear()
-    ax.plot(x[:i+1], time_group["Sales Value"].values[:i+1], color="dodgerblue")
-    ax.set_title("Sales Value Over Time")
-    ax.set_xlabel("Month")
-    ax.set_ylabel("Sales (₹)")
-    ax.tick_params(axis='x', rotation=45)
-    plt.tight_layout()
-    st.pyplot(fig)
-
-# Last: Influencer-level ROAS
-roas_chart = filtered.groupby("Influencer Name")["ROAS"].mean().sort_values(ascending=False)
-fig, ax = plt.subplots(figsize=(10, 5))
-sns.barplot(x=roas_chart.index, y=roas_chart.values, ax=ax, palette="cubehelix")
-ax.set_title("Influencer-wise ROAS")
-ax.set_ylabel("ROAS (x)")
-ax.set_xlabel("Influencer")
-ax.set_xticklabels(roas_chart.index, rotation=90, fontsize=7)
-st.pyplot(fig)
+    st.subheader("🧠 Incremental ROAS by Influencer")
+    roas_by_influencer = filtered_df.groupby("name")["incremental_ROAS"].mean().reset_index()
+    roas_by_influencer = roas_by_influencer.sort_values("incremental_ROAS", ascending=False).head(20)
+    fig4 = alt.Chart(roas_by_influencer).mark_bar().encode(
+        x=alt.X("name:N", sort="-y", title="Influencer Name", axis=alt.Axis(labelAngle=-90, labelFontSize=10)),
+        y=alt.Y("incremental_ROAS:Q", title="Incremental ROAS"),
+        color="incremental_ROAS:Q",
+        tooltip=["name", "incremental_ROAS"]
+    ).properties(width=1000, height=400)
+    st.altair_chart(fig4, use_container_width=True)
 
 st.markdown("---")
 st.markdown("Made with 💚 by SurajSingh")
