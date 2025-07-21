@@ -1,6 +1,6 @@
-streamlit
-pandas
-numpy
-seaborn
-matplotlib
-scikit-learn
+streamlit>=1.33.0
+pandas>=2.2.2
+matplotlib>=3.8.4
+seaborn>=0.13.2
+altair>=5.3.0
+streamlit-extras>=0.3.4
