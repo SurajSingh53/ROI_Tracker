@@ -97,6 +97,5 @@ if uploaded_tracking and uploaded_posts and uploaded_payouts and uploaded_influe
         tooltip=["name", "incremental_ROAS"]
     ).properties(width=1000, height=400)
     st.altair_chart(fig4, use_container_width=True)
-
 st.markdown("---")
 st.markdown("Made with 💚 by SurajSingh")
