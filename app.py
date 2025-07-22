@@ -55,57 +55,66 @@ if all([influencers_file, posts_file, tracking_file, payouts_file]):
     df_merged["Incremental ROAS"] = df_merged["ROAS"] - df_merged["avg_platform_roas"]
 
     # Date Range Slider
-    min_date = df_tracking["date"].min()
-    max_date = df_tracking["date"].max()
-    selected_range = st.slider("Select Campaign Date Range", min_value=min_date, max_value=max_date, value=(min_date, max_date))
-    df_merged = df_merged[(df_merged["date"] >= selected_range[0]) & (df_merged["date"] <= selected_range[1])]
+    min_date = pd.to_datetime(df_tracking["date"].min())
+    max_date = pd.to_datetime(df_tracking["date"].max())
 
-    st.subheader("📊 Campaign Overview")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("💰 Total Revenue", f"₹{df_merged['revenue'].sum():,.0f}")
-    col2.metric("📦 Total Orders", f"{df_merged['orders'].sum():,.0f}")
-    col3.metric("📈 Avg ROAS", f"{df_merged['ROAS'].mean():.2f}")
-    col4.metric("✨ Incremental ROAS", f"{df_merged['Incremental ROAS'].mean():.2f}")
+    if pd.isnull(min_date) or pd.isnull(max_date):
+        st.error("Date values in tracking_data.csv are missing or invalid.")
+    else:
+        selected_range = st.slider(
+            "Select Campaign Date Range",
+            min_value=min_date,
+            max_value=max_date,
+            value=(min_date, max_date)
+        )
+        df_merged = df_merged[(df_merged["date"] >= selected_range[0]) & (df_merged["date"] <= selected_range[1])]
 
-    st.subheader("🎯 Influencer Insights")
-    platform = st.selectbox("Filter by Platform", df_merged["platform"].unique())
-    df_filtered = df_merged[df_merged["platform"] == platform]
-    influencer_summary = df_filtered.groupby("name").agg({
-        "follower_count": "first",
-        "engagement_rate": "first",
-        "revenue": "sum",
-        "orders": "sum",
-        "total_payout": "mean",
-        "ROAS": "mean"
-    }).sort_values("ROAS", ascending=False).reset_index()
+        st.subheader("📊 Campaign Overview")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("💰 Total Revenue", f"₹{df_merged['revenue'].sum():,.0f}")
+        col2.metric("📦 Total Orders", f"{df_merged['orders'].sum():,.0f}")
+        col3.metric("📈 Avg ROAS", f"{df_merged['ROAS'].mean():.2f}")
+        col4.metric("✨ Incremental ROAS", f"{df_merged['Incremental ROAS'].mean():.2f}")
 
-    fig_bar = px.bar_3d(
-        influencer_summary,
-        x="name", y="revenue", z="follower_count",
-        color="ROAS",
-        title="3D Revenue vs Followers by Influencer",
-        height=600
-    )
-    st.plotly_chart(fig_bar, use_container_width=True)
+        st.subheader("🎯 Influencer Insights")
+        platform = st.selectbox("Filter by Platform", df_merged["platform"].unique())
+        df_filtered = df_merged[df_merged["platform"] == platform]
+        influencer_summary = df_filtered.groupby("name").agg({
+            "follower_count": "first",
+            "engagement_rate": "first",
+            "revenue": "sum",
+            "orders": "sum",
+            "total_payout": "mean",
+            "ROAS": "mean"
+        }).sort_values("ROAS", ascending=False).reset_index()
 
-    st.dataframe(influencer_summary.style.format({
-        "revenue": "₹{:.0f}",
-        "total_payout": "₹{:.0f}",
-        "ROAS": "{:.2f}"
-    }), use_container_width=True)
+        fig_bar = px.bar_3d(
+            influencer_summary,
+            x="name", y="revenue", z="follower_count",
+            color="ROAS",
+            title="3D Revenue vs Followers by Influencer",
+            height=600
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
 
-    st.subheader("📸 Top Performing Posts")
-    top_posts = df_posts[df_posts["date"].between(*selected_range)].sort_values(by="likes", ascending=False).head(10)
-    st.dataframe(top_posts[["platform", "date", "url", "caption", "likes", "comments", "shares"]])
+        st.dataframe(influencer_summary.style.format({
+            "revenue": "₹{:.0f}",
+            "total_payout": "₹{:.0f}",
+            "ROAS": "{:.2f}"
+        }), use_container_width=True)
 
-    st.subheader("💸 Payout Summary")
-    payouts_summary = df_payouts.groupby("status")["total_payout"].sum().reset_index()
-    fig = go.Figure(data=[go.Pie(labels=payouts_summary["status"], values=payouts_summary["total_payout"], hole=.4)])
-    fig.update_layout(title_text="Payout Status Distribution", height=500)
-    st.plotly_chart(fig, use_container_width=True)
+        st.subheader("📸 Top Performing Posts")
+        top_posts = df_posts[df_posts["date"].between(*selected_range)].sort_values(by="likes", ascending=False).head(10)
+        st.dataframe(top_posts[["platform", "date", "url", "caption", "likes", "comments", "shares"]])
 
-    if st.button("📤 Export Insights to CSV"):
-        influencer_summary.to_csv("influencer_summary.csv", index=False)
-        st.success("Exported influencer_summary.csv")
+        st.subheader("💸 Payout Summary")
+        payouts_summary = df_payouts.groupby("status")["total_payout"].sum().reset_index()
+        fig = go.Figure(data=[go.Pie(labels=payouts_summary["status"], values=payouts_summary["total_payout"], hole=.4)])
+        fig.update_layout(title_text="Payout Status Distribution", height=500)
+        st.plotly_chart(fig, use_container_width=True)
+
+        if st.button("📤 Export Insights to CSV"):
+            influencer_summary.to_csv("influencer_summary.csv", index=False)
+            st.success("Exported influencer_summary.csv")
 else:
     st.info("Please upload all 4 required CSV files to proceed.")
