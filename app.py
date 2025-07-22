@@ -497,32 +497,57 @@ def to_excel(df):
     processed_data = output.getvalue()
     return processed_data
 
+from fpdf import FPDF
+from fpdf.enums import XPos, YPos
+
 def create_pdf_report():
+    # Create PDF with Unicode support
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    
+    # Add a Unicode-compatible font (DejaVuSans supports most Unicode characters)
+    pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+    pdf.add_font("DejaVu", "B", "DejaVuSans-Bold.ttf", uni=True)
+    
+    # Set font
+    pdf.set_font("DejaVu", size=12)
     
     # Add title
-    pdf.cell(200, 10, txt="HealthKart Influencer Campaign Report", ln=1, align='C')
+    pdf.set_font("DejaVu", "B", 16)
+    pdf.cell(0, 10, "HealthKart Influencer Campaign Report", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
+    pdf.ln(5)
     
     # Add date range
-    pdf.cell(200, 10, txt=f"Date Range: {start_date.date()} to {end_date.date()}", ln=1, align='C')
+    pdf.set_font("DejaVu", size=12)
+    pdf.cell(0, 10, f"Date Range: {start_date.date()} to {end_date.date()}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
+    pdf.ln(10)
     
     # Add KPIs
-    pdf.cell(200, 10, txt="Key Performance Indicators", ln=1, align='L')
-    pdf.cell(200, 10, txt=f"Total Revenue: ₹{total_revenue:,.0f}", ln=1)
-    pdf.cell(200, 10, txt=f"Total Payout: ₹{total_payout:,.0f}", ln=1)
-    pdf.cell(200, 10, txt=f"Average ROAS: {avg_roas:.2f}", ln=1)
-    pdf.cell(200, 10, txt=f"Total Orders: {total_orders:,.0f}", ln=1)
+    pdf.set_font("DejaVu", "B", 14)
+    pdf.cell(0, 10, "Key Performance Indicators", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("DejaVu", size=12)
+    
+    # Format currency with proper Rupee symbol
+    def format_currency(amount):
+        return f"₹{amount:,.0f}"  # Now works with Unicode font
+    
+    pdf.cell(0, 10, f"Total Revenue: {format_currency(total_revenue)}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 10, f"Total Payout: {format_currency(total_payout)}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 10, f"Average ROAS: {avg_roas:.2f}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(0, 10, f"Total Orders: {total_orders:,.0f}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.ln(10)
     
     # Add top influencers
-    pdf.cell(200, 10, txt="Top 5 Influencers by Revenue", ln=1, align='L')
+    pdf.set_font("DejaVu", "B", 14)
+    pdf.cell(0, 10, "Top 5 Influencers by Revenue", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("DejaVu", size=12)
+    
     top_influencers_list = top_influencers.sort_values('revenue', ascending=False).head(5)
     for idx, row in top_influencers_list.iterrows():
-        pdf.cell(200, 10, txt=f"{row['name']} - 'Rs '{row['revenue']:,.0f} (ROAS: {row['ROAS']:.2f})", ln=1)
+        pdf.cell(0, 10, f"{row['name']} - {format_currency(row['revenue'])} (ROAS: {row['ROAS']:.2f})", 
+                new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
     return pdf
-
 # Export buttons
 col1, col2 = st.sidebar.columns(2)
 
