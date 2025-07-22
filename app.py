@@ -519,7 +519,7 @@ def create_pdf_report():
     pdf.cell(200, 10, txt="Top 5 Influencers by Revenue", ln=1, align='L')
     top_influencers_list = top_influencers.sort_values('revenue', ascending=False).head(5)
     for idx, row in top_influencers_list.iterrows():
-        pdf.cell(200, 10, txt=f"{row['name']} - ₹{row['revenue']:,.0f} (ROAS: {row['ROAS']:.2f})", ln=1)
+        pdf.cell(200, 10, txt=f"{row['name']} - 'Rs '{row['revenue']:,.0f} (ROAS: {row['ROAS']:.2f})", ln=1)
     
     return pdf
 
