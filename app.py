@@ -1,62 +1,75 @@
+# influencer_dashboard.py
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(page_title="Influencer ROI Tracker", layout="wide")
+# Page config
+st.set_page_config(page_title="Influencer Campaign Dashboard", layout="wide")
+st.title("📈 HealthKart Influencer Campaign Dashboard")
 
-st.title("📈 Influencer Campaign ROI Dashboard")
+# Upload CSV files
+st.sidebar.header("Upload Campaign Data")
+influencers_file = st.sidebar.file_uploader("Upload influencers.csv", type="csv")
+posts_file = st.sidebar.file_uploader("Upload posts.csv", type="csv")
+tracking_file = st.sidebar.file_uploader("Upload tracking_data.csv", type="csv")
+payouts_file = st.sidebar.file_uploader("Upload payouts.csv", type="csv")
 
-uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+if all([influencers_file, posts_file, tracking_file, payouts_file]):
+    # Load data
+    df_influencers = pd.read_csv(influencers_file)
+    df_posts = pd.read_csv(posts_file)
+    df_tracking = pd.read_csv(tracking_file)
+    df_payouts = pd.read_csv(payouts_file)
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
+    # Merge tracking with influencer details
+    df_merged = df_tracking.merge(df_influencers, on="influencer_id")
+    df_merged = df_merged.merge(df_payouts[["influencer_id", "campaign", "total_payout"]], on=["influencer_id", "campaign"], how="left")
 
-    required_cols = ["brand", "product", "revenue", "clicks", "cost_per_click", "total_payout"]
-    if not all(col in df.columns for col in required_cols):
-        st.error(f"Missing one or more required columns: {required_cols}")
-        st.stop()
+    # ROAS Calculation
+    df_merged["ROAS"] = df_merged["revenue"] / (df_merged["clicks"] * df_merged["cost_per_click"] + 1e-5)
 
-    df["ROI"] = df["revenue"] / df["total_payout"]
-    df["ROAS"] = df["revenue"] / (df["clicks"] * df["cost_per_click"])
-    df["incremental_ROAS"] = df["ROAS"] - df["ROI"]
+    # Incremental ROAS: we'll simulate it by comparing campaign ROAS to average platform ROAS
+    avg_roas_by_platform = df_merged.groupby("platform")["ROAS"].mean().reset_index().rename(columns={"ROAS": "avg_platform_roas"})
+    df_merged = df_merged.merge(avg_roas_by_platform, on="platform")
+    df_merged["Incremental ROAS"] = df_merged["ROAS"] - df_merged["avg_platform_roas"]
 
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"])
-    else:
-        st.warning("No 'date' column found in the uploaded file. Time series charts will be disabled.")
+    st.subheader("📊 Campaign Overview")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Revenue", f"₹{df_merged['revenue'].sum():,.0f}")
+    col2.metric("Total Orders", f"{df_merged['orders'].sum():,.0f}")
+    col3.metric("Avg ROAS", f"{df_merged['ROAS'].mean():.2f}")
+    col4.metric("Incremental ROAS", f"{df_merged['Incremental ROAS'].mean():.2f}")
 
-    brands = df["brand"].dropna().unique()
-    products = df["product"].dropna().unique()
+    st.subheader("🎯 Influencer Insights")
+    platform = st.selectbox("Filter by Platform", df_merged["platform"].unique())
+    df_filtered = df_merged[df_merged["platform"] == platform]
+    influencer_summary = df_filtered.groupby("name").agg({
+        "follower_count": "first",
+        "engagement_rate": "first",
+        "revenue": "sum",
+        "orders": "sum",
+        "total_payout": "mean",
+        "ROAS": "mean"
+    }).sort_values("ROAS", ascending=False).reset_index()
 
-    st.sidebar.header("Filters")
-    selected_brand = st.sidebar.selectbox("Brand", options=["All"] + list(brands))
-    selected_product = st.sidebar.selectbox("Product", options=["All"] + list(products))
+    st.dataframe(influencer_summary.style.format({
+        "revenue": "₹{:.0f}",
+        "total_payout": "₹{:.0f}",
+        "ROAS": "{:.2f}"
+    }), use_container_width=True)
 
-    if selected_brand != "All":
-        df = df[df["brand"] == selected_brand]
-    if selected_product != "All":
-        df = df[df["product"] == selected_product]
+    st.subheader("📸 Post Performance")
+    top_posts = df_posts.sort_values(by="likes", ascending=False).head(10)
+    st.write("Top 10 Most Liked Posts")
+    st.dataframe(top_posts[["platform", "date", "url", "caption", "likes", "comments", "shares"]])
 
-    st.subheader("📊 ROI & ROAS Overview")
-    st.dataframe(df[["brand", "product", "revenue", "total_payout", "ROI", "ROAS", "incremental_ROAS"]].sort_values("ROI", ascending=False))
+    st.subheader("💸 Payout Summary")
+    payouts_summary = df_payouts.groupby("status")["total_payout"].sum().reset_index()
+    fig = px.pie(payouts_summary, names="status", values="total_payout", title="Payout Status")
+    st.plotly_chart(fig, use_container_width=True)
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Average ROI", f"{df['ROI'].mean():.2f}")
-    col2.metric("Average ROAS", f"{df['ROAS'].mean():.2f}")
-    col3.metric("Avg Incremental ROAS", f"{df['incremental_ROAS'].mean():.2f}")
-
-    st.subheader("📉 ROI Distribution")
-    fig1 = px.histogram(df, x="ROI", nbins=30, title="ROI Distribution")
-    st.plotly_chart(fig1, use_container_width=True)
-
-    st.subheader("📊 Top Influencer Performance")
-    if "influencer" in df.columns:
-        top_df = df.groupby("influencer")[["ROI", "ROAS", "incremental_ROAS"]].mean().sort_values("ROI", ascending=False).head(10)
-        st.dataframe(top_df)
-    else:
-        st.info("No 'influencer' column found to display performance.")
-
-    if "date" in df.columns:
-        st.subheader("🗓️ ROI Over Time")
-        time_fig = px.line(df.sort_values("date"), x="date", y="ROI", title="ROI Trend")
-        st.plotly_chart(time_fig, use_container_width=True)
+    if st.button("📤 Export Insights to CSV"):
+        influencer_summary.to_csv("influencer_summary.csv", index=False)
+        st.success("Exported influencer_summary.csv")
+else:
+    st.info("Please upload all 4 required CSV files to proceed.")
